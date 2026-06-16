@@ -3,7 +3,7 @@ HTML
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>에스파 타이틀곡 전체 순위 정렬</title>
+    <title>에스파 타이틀곡 소트</title>
     <style>
         body {
             font-family: 'Malgun Gothic', sans-serif;
@@ -15,11 +15,10 @@ HTML
             display: flex;
             justify-content: center;
             gap: 20px;
-            margin-top: 30px;
+            margin-top: 20px;
         }
         .btn {
-            width: 250px;
-            height: 120px;
+            font-family: inherit;
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
@@ -28,14 +27,33 @@ HTML
             border-radius: 10px;
             transition: 0.2s;
             word-break: keep-all;
+            white-space: pre-wrap; /* 줄바꿈 허용 */
         }
         .btn:hover {
             background-color: #e9ecef;
+        }
+        .main-btn {
+            width: 280px;
+            height: 140px;
+            font-size: 22px;
+            color: #0056b3;
+        }
+        .sub-btn {
+            width: 280px;
+            height: 60px;
+            font-size: 18px;
+            background-color: #f1f3f5;
+            color: #555;
+            border-color: #aaa;
+        }
+        .sub-btn:hover {
+            background-color: #dee2e6;
         }
         #progress {
             color: #6c757d;
             font-size: 16px;
             margin-top: 10px;
+            margin-bottom: 20px;
         }
         #resultBoard {
             display: none;
@@ -76,12 +94,19 @@ HTML
 <body>
 
     <h1>에스파 타이틀곡 전체 순위 정렬</h1>
-    <p>더 마음에 드는 곡을 선택하세요. 대진운 없이 완벽한 순위를 만듭니다.</p>
+    <p>더 마음에 드는 곡을 선택하세요.</p>
     <div id="progress">준비 중...</div>
 
-    <div class="container" id="gameBoard">
-        <button class="btn" id="btnLeft" onclick="makeChoice('insert')"></button>
-        <button class="btn" id="btnRight" onclick="makeChoice('sorted')"></button>
+    <!-- 메인 선택 버튼 (좌/우) -->
+    <div class="container" id="gameBoardMain">
+        <button class="btn main-btn" id="btnLeft" onclick="makeChoice('left')"></button>
+        <button class="btn main-btn" id="btnRight" onclick="makeChoice('right')"></button>
+    </div>
+
+    <!-- 서브 선택 버튼 (무승부 처리) -->
+    <div class="container" id="gameBoardSub">
+        <button class="btn sub-btn" onclick="makeChoice('tie')">둘 다 좋다</button>
+        <button class="btn sub-btn" onclick="makeChoice('tie')">모르겠다</button>
     </div>
 
     <div id="resultBoard">
@@ -90,24 +115,25 @@ HTML
     </div>
 
     <script>
-        // 에스파 역대 타이틀곡 리스트 적용 완료
+        // 에스파 역대 타이틀곡 리스트
         let songList = [
             "Black Mamba", "Next Level", "Savage", "Girls", 
             "Spicy", "Drama", "Supernova", "Armageddon", 
             "Whiplash", "Dirty Work", "Rich Man", "LEMONADE"
         ];
         
-        // 편향 방지를 위해 처음에 한 번 무작위로 섞기
         songList.sort(() => Math.random() - 0.5);
 
-        let sortedArray = [songList[0]];
+        // 1차원 배열이 아닌 2차원 배열(그룹)로 관리하여 공동 순위를 지원
+        let sortedGroups = [ [songList[0]] ];
         let insertIndex = 1;
         let compareIndex = 0;
 
         const progressText = document.getElementById("progress");
         const btnLeft = document.getElementById("btnLeft");
         const btnRight = document.getElementById("btnRight");
-        const gameBoard = document.getElementById("gameBoard");
+        const gameBoardMain = document.getElementById("gameBoardMain");
+        const gameBoardSub = document.getElementById("gameBoardSub");
         const resultBoard = document.getElementById("resultBoard");
         const rankingList = document.getElementById("rankingList");
 
@@ -118,23 +144,36 @@ HTML
             }
 
             progressText.innerText = "진행률: " + insertIndex + " / " + songList.length + " 곡 배치 중";
+            
+            // 왼쪽 버튼: 새로 배치할 곡
             btnLeft.innerText = songList[insertIndex];
-            btnRight.innerText = sortedArray[compareIndex];
+            
+            // 오른쪽 버튼: 기존에 정렬된 곡 (공동 순위일 경우 여러 곡 표시)
+            let rightText = sortedGroups[compareIndex].join('\n&\n');
+            btnRight.innerText = rightText;
         }
 
-        function makeChoice(winner) {
+        function makeChoice(choice) {
             let currentSong = songList[insertIndex];
 
-            if (winner === 'insert') {
+            if (choice === 'left') {
+                // 새로 들어온 곡이 더 좋음 -> 순위 상승
                 compareIndex--;
                 if (compareIndex < 0) {
-                    sortedArray.unshift(currentSong);
+                    sortedGroups.unshift([currentSong]); // 1위로 추가
                     moveToNextSong();
                 } else {
-                    updateUI();
+                    updateUI(); // 윗 순위 곡과 다시 비교
                 }
-            } else {
-                sortedArray.splice(compareIndex + 1, 0, currentSong);
+            } 
+            else if (choice === 'right') {
+                // 기존 곡이 더 좋음 -> 기존 곡 바로 아래에 새 그룹으로 삽입
+                sortedGroups.splice(compareIndex + 1, 0, [currentSong]);
+                moveToNextSong();
+            } 
+            else if (choice === 'tie') {
+                // 둘 다 좋다 / 모르겠다 -> 무승부 (현재 비교 중인 그룹에 묶어버림)
+                sortedGroups[compareIndex].push(currentSong);
                 moveToNextSong();
             }
         }
@@ -142,33 +181,44 @@ HTML
         function moveToNextSong() {
             insertIndex++;
             if (insertIndex < songList.length) {
-                compareIndex = sortedArray.length - 1;
+                compareIndex = sortedGroups.length - 1; // 다시 꼴찌부터 비교 시작
             }
             updateUI();
         }
 
         function showResults() {
-            gameBoard.style.display = "none";
+            gameBoardMain.style.display = "none";
+            gameBoardSub.style.display = "none";
             progressText.style.display = "none";
             resultBoard.style.display = "block";
 
             let html = "<table>";
-            html += "<tr><th>순위</th><th>곡 제목</th></tr>"; 
+            html += "<tr><th style='width: 30%;'>순위</th><th>곡 제목</th></tr>"; 
             
-            for (let i = 0; i < sortedArray.length; i++) {
-                let rowClass = (i === 0) ? " class='rank-1'" : "";
+            let currentRank = 1; // 실제 표시될 순위
+
+            for (let i = 0; i < sortedGroups.length; i++) {
+                let group = sortedGroups[i];
+                let rowClass = (currentRank === 1) ? " class='rank-1'" : "";
                 
+                // 공동 순위 곡들을 쉼표로 연결하여 표기
+                let songsText = group.join(', ');
+
                 html += `<tr${rowClass}>
-                            <td>${i + 1}위</td>
-                            <td>${sortedArray[i]}</td>
+                            <td>${currentRank}위</td>
+                            <td>${songsText}</td>
                          </tr>`;
+                
+                // 해당 그룹에 속한 곡의 개수만큼 다음 순위를 건너뜀 (ex: 1위가 2곡이면 다음은 3위)
+                currentRank += group.length;
             }
             html += "</table>";
             
             rankingList.innerHTML = html;
         }
 
-        compareIndex = sortedArray.length - 1;
+        // 시작
+        compareIndex = sortedGroups.length - 1;
         updateUI();
     </script>
 
